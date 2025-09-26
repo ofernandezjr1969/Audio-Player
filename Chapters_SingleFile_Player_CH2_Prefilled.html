@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chapters Player — Single‑File (No Server)</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#0b0b0c;color:#f5f5f7;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #1d1d20;background:#0f0f10}
+h1{font-size:16px;margin:0;color:#e9eef5}
+main{display:grid;grid-template-columns:320px 1fr;gap:16px;max-width:1000px;margin:16px auto;padding:0 16px}
+aside{background:#0f0f12;border:1px solid #1b1b20;border-radius:14px;overflow:auto;max-height:calc(100vh - 168px);padding:8px}
+.track{display:flex;gap:10px;padding:10px;border-radius:10px;cursor:pointer;align-items:center;border:1px solid transparent}
+.track:hover{background:#141418;border-color:#1d1d24}
+.track.active{background:#17171d;border-color:#2a2a36}
+.t1{font-size:14px;color:#e9edf4}
+.t2{font-size:12px;color:#9aa0aa}
+#player{background:#0f0f12;border:1px solid #1b1b20;border-radius:14px;padding:16px}
+.controls .row{display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap}
+button{background:#191921;border:1px solid #2a2a36;color:#e9eef5;padding:10px 14px;border-radius:10px;cursor:pointer;min-width:56px}
+button.primary{background:#2b2bff;border-color:#3b3bff}
+button:hover{filter:brightness(1.1)}
+#seek{flex:1;appearance:none;height:6px;background:#1b1b20;border-radius:999px;outline:none}
+#seek::-webkit-slider-thumb{appearance:none;width:14px;height:14px;border-radius:50%;background:#7cf;border:1px solid #0a0a0c}
+.meta h2{margin:4px 0 2px;font-size:20px;color:#e9eef5}
+.meta p{margin:0;color:#a6adba;font-size:13px}
+.toprow{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select{background:#0f0f12;color:#e9eef5;border:1px solid #2a2a36;border-radius:8px;padding:6px}
+.note{color:#a0a7b5;font-size:12px}
+@media (max-width:900px){main{grid-template-columns:1fr}aside{max-height:unset}}
+</style>
+<header>
+  <h1>Chapters Player — Single‑File</h1>
+  <div class="note">Put your MP3s in <code>./audio/</code>. Double‑click to open. No server needed.</div>
+</header>
+<main>
+  <aside>
+    <div class="toprow">
+      <label>Chapter
+        <select id="chapterSel" title="Choose Chapter">
+          <option value="1">Chapter 1</option>
+          <option value="2">Chapter 2</option>
+        </select>
+      </label>
+      <span class="note">I prefilled Chapter 2 with your filenames. If your files are .m4a, change the extension in the code to ".m4a".</span>
+    </div>
+    <div id="playlist" style="margin-top:8px;"></div>
+  </aside>
+  <section id="player">
+    <div class="meta">
+      <h2 id="title">—</h2>
+      <p id="subtitle">Maria (ElevenLabs)</p>
+    </div>
+    <div class="controls">
+      <div class="row">
+        <button id="prev" aria-label="Previous">⏮</button>
+        <button id="rew" aria-label="Back 15s">⟲ 15</button>
+        <button id="play" class="primary" aria-label="Play/Pause">▶</button>
+        <button id="ff" aria-label="Forward 30s">30 ⟳</button>
+        <button id="next" aria-label="Next">⏭</button>
+      </div>
+      <div class="row">
+        <span id="current">0:00</span>
+        <input id="seek" type="range" min="0" max="100" value="0" step="0.1">
+        <span id="duration">0:00</span>
+      </div>
+      <div class="row">
+        <label>Speed
+          <select id="speed">
+            <option>0.75</option><option selected>1.0</option><option>1.25</option><option>1.5</option><option>1.75</option><option>2.0</option>
+          </select>
+        </label>
+        <label><input type="checkbox" id="remember" checked> Remember position</label>
+        <label><input type="checkbox" id="autoplay" checked> Autoplay next</label>
+      </div>
+    </div>
+    <audio id="audio" preload="metadata"></audio>
+  </section>
+</main>
+<script>
+// Chapter 1 — same names you already confirmed work
+const CH1 = [
+  { id:"ch1-s1", title:"Chapter 1 — Scene 1 The 3FunApp", url:"audio/Ch1_The3FunApp_Scene1.mp3" },
+  { id:"ch1-s2", title:"Chapter 1 — Scene 2 Hotel Room",  url:"audio/Ch1_Scene2_HotelRoom.mp3" },
+  { id:"ch1-s3", title:"Chapter 1 — Scene 3 Avas Turn",    url:"audio/Ch1_Scene3_AvasTurn.mp3" },
+  { id:"ch1-s4", title:"Chapter 1 — Scene 4 Early Morning",url:"audio/Ch1_Scene4_EarlyMorning.mp3" }
+];
+
+// Chapter 2 — filled with your exact basenames (assuming .mp3)
+const CH2 = [
+  { id:"ch2-s1", title:"Chapter 2 — Scene 1 The Man at the Bar Cart", url:"audio/Ch.2_PublicTemptation_KingsTable_Scene1_TheManAtTheBarCart.mp3" },
+  { id:"ch2-s2", title:"Chapter 2 — Scene 2 The Spark in the Garden", url:"audio/Ch.2_Scene2_TheSparkInTheGarden.mp3" },
+  { id:"ch2-s3", title:"Chapter 2 — Scene 3 The King’s Table", url:"audio/Ch.2_Scene3_TheKingsTable.mp3" },
+  { id:"ch2-s4", title:"Chapter 2 — Scene 4 Under the Table", url:"audio/Ch.2_Scene4_UnderTheTable.mp3" },
+  { id:"ch2-s5", title:"Chapter 2 — Scene 5 The Powder Room", url:"audio/Ch.2_Scene5_ThePowderRoom.mp3" },
+  { id:"ch2-s6", title:"Chapter 2 — Scene 6 Against the Glass", url:"audio/Ch.2_Scene6_AgainstTheGlass.mp3" },
+  { id:"ch2-s7", title:"Chapter 2 — Scene 7 Reclaimed", url:"audio/Ch.2_Scene7_Reclaimed.mp3" }
+];
+
+// Player logic
+const audio = document.getElementById('audio');
+const titleEl = document.getElementById('title');
+const playlistEl = document.getElementById('playlist');
+const playBtn = document.getElementById('play');
+const prevBtn = document.getElementById('prev');
+const nextBtn = document.getElementById('next');
+const rewBtn = document.getElementById('rew');
+const ffBtn = document.getElementById('ff');
+const seek = document.getElementById('seek');
+const current = document.getElementById('current');
+const duration = document.getElementById('duration');
+const speedSel = document.getElementById('speed');
+const rememberChk = document.getElementById('remember');
+const chapterSel = document.getElementById('chapterSel');
+
+let currentIndex = 0;
+let currentChapter = '1';
+let tracks = CH1.slice();
+
+function fmt(s){ if (isNaN(s)||s===Infinity) return '0:00'; const m=Math.floor(s/60), ss=Math.floor(s%60).toString().padStart(2,'0'); return `${m}:${ss}`; }
+
+function setChapter(ch){
+  currentChapter = ch;
+  tracks = (ch==='1' ? CH1 : CH2).slice();
+  currentIndex = 0;
+  renderPlaylist();
+  load(0);
+  localStorage.setItem('chapter', ch);
+}
+chapterSel.addEventListener('change', ()=> setChapter(chapterSel.value));
+
+function renderPlaylist(){
+  playlistEl.innerHTML = '';
+  tracks.forEach((t,i)=>{
+    const row = document.createElement('div');
+    row.className = 'track' + (i===currentIndex ? ' active':'');
+    row.innerHTML = `<div><div class="t1">${t.title}</div><div class="t2">${t.url}</div></div>`;
+    row.onclick = ()=>{ load(i); play(); };
+    playlistEl.appendChild(row);
+  });
+}
+function mark(){ [...playlistEl.children].forEach((el,i)=> el.classList.toggle('active', i===currentIndex)); }
+function load(i){
+  currentIndex = i;
+  const t = tracks[i];
+  audio.src = t.url;
+  audio.playbackRate = parseFloat(speedSel.value);
+  titleEl.textContent = t.title;
+  mark();
+  const key = 'pos:'+ (currentChapter + ':' + (t.id||t.url));
+  const pos = parseFloat(localStorage.getItem(key)||'0');
+  if(!isNaN(pos) && pos>0) audio.currentTime = pos;
+  localStorage.setItem('last', currentChapter + ':' + (t.id||t.url));
+}
+function play(){ audio.paused ? audio.play() : audio.pause(); }
+
+playBtn.onclick = play;
+prevBtn.onclick = ()=> { if (currentIndex>0){ load(currentIndex-1); audio.play(); } };
+nextBtn.onclick = ()=> { if (currentIndex<tracks.length-1){ load(currentIndex+1); audio.play(); } };
+rewBtn.onclick = ()=> audio.currentTime = Math.max(0, audio.currentTime - 15);
+ffBtn.onclick  = ()=> audio.currentTime = Math.min(audio.duration||0, audio.currentTime + 30);
+speedSel.onchange = ()=> audio.playbackRate = parseFloat(speedSel.value);
+seek.oninput = ()=> { if (audio.duration){ audio.currentTime = (seek.value/100) * audio.duration; } };
+
+audio.ontimeupdate = ()=> {
+  if (audio.duration){
+    seek.value = (audio.currentTime / audio.duration) * 100;
+    current.textContent = fmt(audio.currentTime);
+    duration.textContent = fmt(audio.duration);
+    if (rememberChk.checked){
+      const t = tracks[currentIndex];
+      localStorage.setItem('pos:'+ (currentChapter + ':' + (t.id||t.url)), audio.currentTime);
+    }
+  }
+};
+audio.onplay = ()=> playBtn.textContent='⏸';
+audio.onpause= ()=> playBtn.textContent='▶';
+audio.onended= ()=> {
+  const t = tracks[currentIndex];
+  localStorage.removeItem('pos:'+ (currentChapter + ':' + (t.id||t.url)));
+  if (document.getElementById('autoplay').checked && currentIndex < tracks.length-1){ load(currentIndex+1); audio.play(); }
+};
+
+// Init chapter
+(function(){
+  const saved = localStorage.getItem('chapter');
+  if (saved === '2') { chapterSel.value='2'; setChapter('2'); }
+  else { setChapter('1'); }
+})();
+</script>
+</html>
